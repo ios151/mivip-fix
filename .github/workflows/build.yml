@@ -1,0 +1,29 @@
+name: Build mivip_fix.dylib
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build arm64 dylib
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          xcrun clang \
+            -fobjc-arc \
+            -fvisibility=hidden \
+            -O1 \
+            -isysroot "$SDK" \
+            -arch arm64 \
+            -miphoneos-version-min=15.0 \
+            -dynamiclib \
+            -framework Foundation \
+            -install_name @rpath/mivip_fix.dylib \
+            -o mivip_fix.dylib \
+            mivip_fix.m
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mivip_fix.dylib
+          path: mivip_fix.dylib
