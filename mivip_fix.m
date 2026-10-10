@@ -9,6 +9,7 @@
 #include <mach-o/dyld.h>
 #include <mach-o/loader.h>
 #include <mach/mach.h>
+#include <libkern/OSCacheControl.h>
 #include <string.h>
 #include <stdint.h>
 
@@ -73,7 +74,7 @@ static void patch_addr(uintptr_t addr) {
     if (kr != KERN_SUCCESS) { NSLog(@"[mivip] vm_protect failed %p kr=%d", (void*)addr, kr); return; }
     memcpy((void *)addr, kPatch, sizeof(kPatch));
     vm_protect(mach_task_self(), page, PAGE_SIZE, FALSE, VM_PROT_READ | VM_PROT_EXECUTE);
-    __builtin___clear_cache((char *)addr, (char *)(addr + sizeof(kPatch)));
+    sys_icache_invalidate((void *)addr, sizeof(kPatch));
     NSLog(@"[mivip] patched %p", (void *)addr);
 }
 
