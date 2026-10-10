@@ -78,9 +78,27 @@ static void patch_addr(uintptr_t addr) {
     NSLog(@"[mivip] patched %p", (void *)addr);
 }
 
-// ---- ObjC hook --------------------------------------------------------------
+// ---- ObjC hooks -------------------------------------------------------------
 
 static BOOL hook_isVip(id self, SEL _cmd) { return YES; }
+
+// Block MiWebPaywallVC from presenting
+typedef void (*PresentVC_t)(id, SEL, id, BOOL, id);
+static PresentVC_t orig_presentVC;
+
+static void hook_presentVC(id self, SEL _cmd, id vc, BOOL animated, id completion) {
+    static Class paywallClass;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        paywallClass = NSClassFromString(@"_TtC14MiSubscription14MiWebPaywallVC");
+    });
+    if (paywallClass && [vc isKindOfClass:paywallClass]) {
+        NSLog(@"[mivip] blocked MiWebPaywallVC");
+        if (completion) ((void(^)(void))completion)();
+        return;
+    }
+    orig_presentVC(self, _cmd, vc, animated, completion);
+}
 
 // ---- Constructor ------------------------------------------------------------
 
@@ -102,6 +120,14 @@ static void mivip_init(void) {
     if (img_idx == UINT32_MAX) { NSLog(@"[mivip] image not found"); return; }
     find_text_bounds(img_idx);
     NSLog(@"[mivip] base=%p text=[%p,%p)", (void*)img_base, (void*)g_text_lo, (void*)g_text_hi);
+
+    // ---- Swizzle presentViewController to block paywall --------------------
+    {
+        Class vcClass = objc_getClass("UIViewController");
+        SEL sel = @selector(presentViewController:animated:completion:);
+        Method m = class_getInstanceMethod(vcClass, sel);
+        orig_presentVC = (PresentVC_t)method_setImplementation(m, (IMP)hook_presentVC);
+    }
 
     // ---- ObjC swizzle (stable by selector name) ----------------------------
     Class bridge = NSClassFromString(@"_TtC8MiPlayer18MiVipManagerBridge");
